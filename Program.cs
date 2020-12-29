@@ -21,14 +21,6 @@ public class Service
     public string target_interface;
 }
 
-public class OpcUaConfiguration
-{
-    public Server server = new Server();
-    public List<ReadNode> readNodes = new List<ReadNode>();
-    public List<WriteNode> writeNodes = new List<WriteNode>();
-    public List<MonitorNode> monitoredNodes = new List<MonitorNode>();
-}
-
 public class Server
 {
     public string url = "", security = "", user = "", password = "";
@@ -37,11 +29,14 @@ public class Server
 public class Node
 {
     public string nodeId, name;
+    public bool handleAsComplexObject;
 }
 
 public class ReadNode : Node
 {
-
+    public ReadNode(){
+        
+    }
 }
 
 public class WriteNode : Node
@@ -261,15 +256,14 @@ public class MonitorNode : Node
                 r.Add(pfad, new ConfigurationParameterValue(o));
             } else if(typ.BaseType == typeof(System.Object) ) {
                 if (typ.IsGenericType)
-                {
+                {                    
                     var param = new ConfigurationParameterValue(o);
-                    r.Add(pfad, param);
-                    
+                    r.Add(pfad, param);                    
                 } else {
                     var felder = typ.GetFields();
-                    foreach(var f in felder)
+                    foreach(var feld in felder)
                     {
-                        var r_sub = ConfigParametersFromObject(pfad + trenner + f.Name, trenner, f.GetValue(o));
+                        var r_sub = ConfigParametersFromObject(pfad + trenner + feld.Name, trenner, feld.GetValue(o));
                         foreach (var r_sub_ in r_sub) r.Add(r_sub_.Key, r_sub_.Value);
                     }
                 }
@@ -292,38 +286,44 @@ public class MonitorNode : Node
             myMsbClient.ConfigurationParameterReceived += ConfigEventHandler;
             var myMsbApplication = new Application(c.uuid, c.name, c.token, c.token);
 
-            OpcUaConfiguration opcUaConfiguration = new OpcUaConfiguration();
-
-            var conf = ConfigParametersFromObject("opcua", '.', opcUaConfiguration);
-
-            foreach (var conf_ in conf)
-            {
-                myMsbApplication.AddConfigurationParameter(conf_.Key, conf_.Value);
-            }
+            myMsbApplication.AddConfigurationParameter("opcua.server.url", new ConfigurationParameterValue(""));
+            myMsbApplication.AddConfigurationParameter("opcua.server.security", new ConfigurationParameterValue(""));
+            myMsbApplication.AddConfigurationParameter("opcua.server.user", new ConfigurationParameterValue(""));
+            myMsbApplication.AddConfigurationParameter("opcua.server.password", new ConfigurationParameterValue(""));
+            myMsbApplication.AddConfigurationParameter("opcua.client.readNodes", new ConfigurationParameterValue(new List<ReadNode>()));
+            myMsbApplication.AddConfigurationParameter("opcua.client.writeNodes", new ConfigurationParameterValue(new List<WriteNode>()));
+            myMsbApplication.AddConfigurationParameter("opcua.client.monitorNodes", new ConfigurationParameterValue(new List<MonitorNode>()));
 
             if (!System.IO.File.Exists(myMsbApplication.ConfigurationPersistencePath)) myMsbApplication.Configuration.SaveToFile(myMsbApplication.ConfigurationPersistencePath);
             myMsbApplication.AutoPersistConfiguration = true;
-
-            try{
-                client = new OpcClient(opcUaConfiguration.server.url);
-                client.Connect();  
-            }
-            catch
-            {
-
-            }                      
 
             var ev_uncon = new Event("OPCUA_No_Conn", "No connection to OPC UA Server", "", typeof(string));
             var ev_con = new Event("OPCUA_Conn", "Connection to OPC UA Server", "", typeof(string));
             myMsbApplication.AddEvent(ev_uncon);
             myMsbApplication.AddEvent(ev_con);
 
-            if (opcUaConfiguration.monitoredNodes != null)
+            try{
+                client = new OpcClient((string)myMsbApplication.Configuration.Parameters["opcua.server.url"].Value);
+                client.Connect();
+            }
+            catch
+            {
+
+            }
+
+            var monitorNodes_linq = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value);
+            var monitorNodes = monitorNodes_linq.ToObject<List<MonitorNode>>();
+
+            //if (opcUaConfiguration.monitoredNodes != null)
+            if (monitorNodes != null)
             {
                 var cm_intern = new List<OpcSubscribeDataChange>();
                 monitoredEvents = new Dictionary<string, Event>();
-                foreach (var d in opcUaConfiguration.monitoredNodes)
+                //foreach (var d in opcUaConfiguration.monitoredNodes)
+                foreach (var d in monitorNodes)
                 {
+                    if (d == null) continue;
+
                     var e = EventAusNodeId(d.nodeId);
                     if (e != null)
                     {
@@ -340,7 +340,11 @@ public class MonitorNode : Node
                 }
             }
 
-            if (opcUaConfiguration.readNodes != null)
+            var readNodes_linq = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.readNodes"].Value);
+            var readNodes = monitorNodes_linq.ToObject<List<ReadNode>>();
+
+            //if (opcUaConfiguration.readNodes != null)
+            if (readNodes != null)
             {
                 var refl = typeof(Program).GetMethods();
                 System.Reflection.MethodInfo m = null;
@@ -350,8 +354,11 @@ public class MonitorNode : Node
                 }
 
                 readEvents = new Dictionary<string, Event>();
-                foreach (var d in opcUaConfiguration.readNodes)
+                //foreach (var d in opcUaConfiguration.readNodes)
+                foreach (var d in readNodes)
                 {
+                    if (d == null) continue;
+
                     var e = EventAusNodeId(d.nodeId);
                     e.Id = "read_" + e.Id;
                     e.Name = "Response - " + e.Name;
@@ -364,7 +371,11 @@ public class MonitorNode : Node
                 }
             }
 
-            if (opcUaConfiguration.writeNodes != null)
+            var writeNodes_linq = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.writeNodes"].Value);
+            var writeNodes = writeNodes_linq.ToObject<List<WriteNode>>();
+
+            //if (opcUaConfiguration.writeNodes != null)
+            if (writeNodes != null)
             {
                 var refl = typeof(Program).GetMethods();
                 System.Reflection.MethodInfo m = null;
@@ -374,8 +385,11 @@ public class MonitorNode : Node
                     if (r.Name == "functionWriteObject") m = r;
                 }
 
-                foreach (var d in opcUaConfiguration.writeNodes)
+                //foreach (var d in opcUaConfiguration.writeNodes)
+                foreach (var d in writeNodes)
                 {
+                    if (d == null) continue;
+
                     m = CbFunktionNachDatentyp(d.nodeId);
                     if (m == null) continue;
                     var f = new Function("write_" + d.nodeId, d.name, "", m, null);
