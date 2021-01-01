@@ -57,9 +57,32 @@ public class MonitorNode : Node
             go = false;
         }
 
+        public static void OpcUaConnectedHandler(object sender, System.EventArgs e)
+        {
+            if (!myMsbClient.IsConnected()) return;
+            
+            var resp = new EventData(ev_con);
+            myMsbClient.PublishAsync(myMsbApplication, resp);
+        }
+
+        public static void OpcUaDisconnectedHandler(object sender, System.EventArgs e)
+        {
+            if (!myMsbClient.IsConnected()) return;
+            
+            var resp = new EventData(ev_uncon);
+            myMsbClient.PublishAsync(myMsbApplication, resp);
+        }
+
         public static void FunktionCb(FunctionCallInfo info)
         {
-            if (client.State != OpcClientState.Connected && client.State != OpcClientState.Reconnected) return;
+            if (client.State != OpcClientState.Connected && client.State != OpcClientState.Reconnected)
+            {
+                var resp = new EventData(ev_uncon) {
+                    CorrelationId = info.CorrelationId
+                };
+                myMsbClient.PublishAsync(myMsbApplication, resp);
+                return;
+            }
 
             var nodeId = info.Function.Id.Substring(("read_").Length);
             var s = nodeId.Split(";");
@@ -274,6 +297,8 @@ public class MonitorNode : Node
             return r;
         }
 
+        static Event ev_con, ev_uncon, ev_err;
+
         public static bool go;
         static void Main(string[] args)
         {
@@ -297,20 +322,26 @@ public class MonitorNode : Node
             if (!System.IO.File.Exists(myMsbApplication.ConfigurationPersistencePath)) myMsbApplication.Configuration.SaveToFile(myMsbApplication.ConfigurationPersistencePath);
             myMsbApplication.AutoPersistConfiguration = true;
 
-            var ev_uncon = new Event("OPCUA_No_Conn", "No connection to OPC UA Server", "", typeof(string));
-            var ev_con = new Event("OPCUA_Conn", "Connection to OPC UA Server", "", typeof(string));
+            ev_uncon = new Event("OPCUA_No_Conn", "No connection to OPC UA Server", "", typeof(string));
+            ev_con = new Event("OPCUA_Conn", "Connection to OPC UA Server", "", typeof(string));
+            ev_err = new Event("OPCUA_Error", "", "", typeof(string));
             myMsbApplication.AddEvent(ev_uncon);
             myMsbApplication.AddEvent(ev_con);
+            myMsbApplication.AddEvent(ev_err);
 
-            try{
+            try
+            {
                 client = new OpcClient((string)myMsbApplication.Configuration.Parameters["opcua.server.url"].Value);
+                client.Connected += OpcUaConnectedHandler;
+                client.Reconnected += OpcUaConnectedHandler;
+                client.Disconnected += OpcUaDisconnectedHandler;
                 client.Connect();
             }
             catch
             {
 
             }
-
+        
             var monitorNodes_linq = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value);
             var monitorNodes = monitorNodes_linq.ToObject<List<MonitorNode>>();
 
