@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Linq;
-using Opc.UaFx;
-using Opc.UaFx.Client;
+//using Opc.UaFx;
+//using Opc.UaFx.Client;
 
 using Fraunhofer.IPA.MSB.Client.API.Attributes;
 using Fraunhofer.IPA.MSB.Client.API.Configuration;
@@ -77,8 +77,9 @@ public class MonitorNode : Node
         {
             if (client.State != OpcClientState.Connected && client.State != OpcClientState.Reconnected)
             {
-                var resp = new EventData(ev_uncon) {
-                    CorrelationId = info.CorrelationId
+                var resp = new EventData(ev_err) {
+                    CorrelationId = info.CorrelationId,
+                    Value = "OPC-UA-Client not connected."
                 };
                 myMsbClient.PublishAsync(myMsbApplication, resp);
                 return;
@@ -130,15 +131,29 @@ public class MonitorNode : Node
 
         public static void functionWriteObject(object val, FunctionCallInfo info)
         {
-            if (client.State != OpcClientState.Connected && client.State != OpcClientState.Reconnected) return;
+            if (!session.Connected) return;
+            //if (client.State != OpcClientState.Connected && client.State != OpcClientState.Reconnected) return;
 
             var nodeId = info.Function.Id.Substring(("read_").Length);
-            var s = nodeId.Split(";");
-            var nodeId_ = new OpcNodeId(s[1].Substring(("s=").Length), int.Parse(s[0].Substring(("ns=").Length)));
-            var status = client.WriteNode(nodeId_, val);
+            //var s = nodeId.Split(";");
+            //var nodeId_ = new OpcNodeId(s[1].Substring(("s=").Length), int.Parse(s[0].Substring(("ns=").Length)));
+            var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
+            var coll = new Opc.Ua.WriteValueCollection() {
+                new Opc.Ua.WriteValue() {
+                    NodeId = nodeId_,
+                    Value = new Opc.Ua.DataValue()
+                    {
+                        Value = val
+                    }
+                }
+            };
+            //var status = client.WriteNode(nodeId_, val);
+            var stat = new Opc.Ua.StatusCodeCollection();
+            var diag = new Opc.Ua.DiagnosticInfoCollection();
+            session.Write(null, coll, out stat, out diag);
         }
 
-        private static void Browse(OpcNodeInfo node)
+        /*private static void Browse(OpcNodeInfo node)
         {
             Program.Browse(node, 0);
         }
@@ -165,15 +180,15 @@ public class MonitorNode : Node
             // Browse the children of the node and continue browsing in preorder.
             foreach (var childNode in node.Children())
                 Program.Browse(childNode, level + 1);
-        }
+        }*/
 
-        public static OpcClient client;
+        //public static OpcClient client;
 
-        public static Type DatentypAusNodeId(OpcNodeId nodeId)
+        public static Type DatentypAusNodeId(Opc.Ua.ExpandedNodeId nodeId)
         {
-            if (nodeId.NamespaceIndex != 0 || nodeId.Type != OpcNodeIdType.Numeric) return null;
+            if (nodeId.NamespaceIndex != 0 || nodeId.IdType != Opc.Ua.IdType.Numeric) return null;
             
-            switch((uint)nodeId.Value)
+            switch((uint)nodeId.Identifier)
             {    
                 case 1: return typeof(Boolean);
                 case 10: return typeof(float);
@@ -189,12 +204,14 @@ public class MonitorNode : Node
         public static System.Reflection.MethodInfo CbFunktionNachDatentyp(string nodeId)
         {
             var s_ = nodeId.Split(";");
-            var o = new OpcNodeId(s_[1].Substring(2), int.Parse(s_[0].Substring(3)));
-            var nInfo = client.BrowseNode(o) as OpcVariableNodeInfo;
+            //var o = new OpcNodeId(s_[1].Substring(2), int.Parse(s_[0].Substring(3)));
+            var o = Opc.Ua.NodeId.Parse(nodeId);
+            
+            var obj = session.ReadNode(o);
 
-            if (nInfo == null) return null;
+            if (obj == null) return null;
 
-            var dt = DatentypAusNodeId(nInfo.DataTypeId);
+            var dt = DatentypAusNodeId(obj.TypeId);
 
             if (dt == null) return null;
 
@@ -237,18 +254,19 @@ public class MonitorNode : Node
         public static Event EventAusNodeId(string nodeId)
         {
             var s_ = nodeId.Split(";");
-            var o = new OpcNodeId(s_[1].Substring(2), int.Parse(s_[0].Substring(3)));
-            var nInfo = client.BrowseNode(o) as OpcVariableNodeInfo;
+            var o = Opc.Ua.NodeId.Parse(nodeId);
+            
+            var obj = session.ReadNode(o);
 
-            if (nInfo == null) return null;
+            if (obj == null) return null;
 
-            var dt = DatentypAusNodeId(nInfo.DataTypeId);
+            var dt = DatentypAusNodeId(obj.TypeId);
 
             if (dt == null) return null;
 
-            return new Event(nodeId, nInfo.Name.Value, "", dt);
+            return new Event(nodeId, obj.DisplayName + "(" + obj.BrowseName + ")", "", dt);
         }
-        public static void HandleDataChanged(object sender, OpcDataChangeReceivedEventArgs e)
+        /*public static void HandleDataChanged(object sender, OpcDataChangeReceivedEventArgs e)
         {
             // The tag property contains the previously set value.
             var item = (OpcMonitoredItem)sender;
@@ -258,6 +276,14 @@ public class MonitorNode : Node
             ev.Value = e.Item.Value.Value;
 
             myMsbClient.PublishAsync(myMsbApplication, ev);
+        }*/
+
+        private static void OnNotification(Opc.Ua.Client.MonitoredItem item, Opc.Ua.Client.MonitoredItemNotificationEventArgs e)
+        {
+            foreach (var value in item.DequeueValues())
+            {
+                Console.WriteLine("{0}: {1}, {2}, {3}", item.DisplayName, value.Value, value.SourceTimestamp, value.StatusCode);
+            }
         }
 
         public static Fraunhofer.IPA.MSB.Client.Websocket.MsbClient myMsbClient;
@@ -297,6 +323,39 @@ public class MonitorNode : Node
             return r;
         }
 
+        static Opc.Ua.Client.SessionReconnectHandler reconnectHandler;
+        static Opc.Ua.Client.Session session;
+
+        private static void Client_KeepAlive(Opc.Ua.Client.Session sender, Opc.Ua.Client.KeepAliveEventArgs e)
+        {
+            if (e.Status != null && Opc.Ua.ServiceResult.IsNotGood(e.Status))
+            {
+                Console.WriteLine("{0} {1}/{2}", e.Status, sender.OutstandingRequestCount, sender.DefunctRequestCount);
+
+                if (reconnectHandler == null)
+                {
+                    Console.WriteLine("--- RECONNECTING ---");
+                    reconnectHandler = new Opc.Ua.Client.SessionReconnectHandler();
+                    reconnectHandler.BeginReconnect(sender, 5000, Client_ReconnectComplete);
+                }
+            }
+        }
+
+        private static void Client_ReconnectComplete(object sender, EventArgs e)
+        {
+            // ignore callbacks from discarded objects.
+            if (!Object.ReferenceEquals(sender, reconnectHandler))
+            {
+                return;
+            }
+
+            session = reconnectHandler.Session;
+            reconnectHandler.Dispose();
+            reconnectHandler = null;
+
+            Console.WriteLine("--- RECONNECTED ---");
+        }
+
         static Event ev_con, ev_uncon, ev_err;
 
         public static bool go;
@@ -331,11 +390,25 @@ public class MonitorNode : Node
 
             try
             {
-                client = new OpcClient((string)myMsbApplication.Configuration.Parameters["opcua.server.url"].Value);
+                /*client = new OpcClient((string)myMsbApplication.Configuration.Parameters["opcua.server.url"].Value);
                 client.Connected += OpcUaConnectedHandler;
                 client.Reconnected += OpcUaConnectedHandler;
                 client.Disconnected += OpcUaDisconnectedHandler;
-                client.Connect();
+                client.Connect();*/
+
+                var application = new Opc.Ua.Configuration.ApplicationInstance
+                {
+                    ApplicationName = c.name,
+                    ApplicationType = Opc.Ua.ApplicationType.Client
+                };
+
+                var applconfig = application.LoadApplicationConfiguration(false).Result;
+
+                var selectedEndpoint = Opc.Ua.Client.CoreClientUtils.SelectEndpoint((string)myMsbApplication.Configuration.Parameters["opcua.server.url"].Value, false);
+                var endpointConfiguration = Opc.Ua.EndpointConfiguration.Create(applconfig);
+                var endpoint = new Opc.Ua.ConfiguredEndpoint(null, selectedEndpoint, endpointConfiguration);
+                session = Opc.Ua.Client.Session.Create(applconfig, endpoint, false, "OPC UA Console Client", 60000, new Opc.Ua.UserIdentity(new Opc.Ua.AnonymousIdentityToken()), null).Result;
+                session.KeepAlive += Client_KeepAlive;
             }
             catch
             {
@@ -348,7 +421,8 @@ public class MonitorNode : Node
             //if (opcUaConfiguration.monitoredNodes != null)
             if (monitorNodes != null)
             {
-                var cm_intern = new List<OpcSubscribeDataChange>();
+                var subscription = new Opc.Ua.Client.Subscription(session.DefaultSubscription) { PublishingInterval = 1000 };
+                var cm_intern = new List<Opc.Ua.Client.MonitoredItem>();// new List<OpcSubscribeDataChange>();
                 monitoredEvents = new Dictionary<string, Event>();
                 //foreach (var d in opcUaConfiguration.monitoredNodes)
                 foreach (var d in monitorNodes)
@@ -361,14 +435,24 @@ public class MonitorNode : Node
                         e.Id = "monitored_" + e.Id;
                         monitoredEvents.Add(d.nodeId, e);
                         myMsbApplication.AddEvent(e);
-                        cm_intern.Add(new OpcSubscribeDataChange(d.nodeId, HandleDataChanged));
-                    }
+                        //cm_intern.Add(new OpcSubscribeDataChange(d.nodeId, HandleDataChanged));
+                        cm_intern.Add(
+                            new Opc.Ua.Client.MonitoredItem(subscription.DefaultItem)
+                            {
+                                RelativePath = "",
+                                StartNodeId = Opc.Ua.NodeId.Parse(d.nodeId)
+                            }
+                        );
+                    }                    
                 }
 
-                if (cm_intern.Count > 0)
+                cm_intern.ForEach(i => i.Notification += OnNotification);
+                subscription.AddItems(cm_intern);
+
+                /*if (cm_intern.Count > 0)
                 {
                     var subscription = client.SubscribeNodes(cm_intern.ToArray());
-                }
+                }*/
             }
 
             var readNodes_linq = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.readNodes"].Value);
@@ -446,7 +530,7 @@ public class MonitorNode : Node
             }
 
             try {
-                client.Disconnect();
+                session.Close();
             } catch {
 
             }
