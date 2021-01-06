@@ -60,12 +60,21 @@ public class OpcUaClient
         switch((uint)nodeId.Identifier)
         {    
             case 1: return typeof(Boolean);
-            case 7: return typeof(UInt32);
+
             case 10: return typeof(float);
             case 11: return typeof(Double);
+
             case 12: return typeof(string);
-            case 27: return typeof(int);
-            case 28: return typeof(uint);
+
+            case 3: return typeof(byte);
+            case 5: return typeof(UInt16);
+            case 7: return typeof(UInt32);
+            case 9: return typeof(UInt64);            
+            
+            case 2: return typeof(sbyte);
+            case 4: return typeof(Int16);
+            case 6: return typeof(Int32);
+            case 8: return typeof(Int64);
         }
 
         return null;
@@ -150,7 +159,7 @@ public class OpcUaClient
                 }
             }
         };
-            //var status = client.WriteNode(nodeId_, val);
+
         var stat = new Opc.Ua.StatusCodeCollection();
         var diag = new Opc.Ua.DiagnosticInfoCollection();
         var rsp = session.Write(null, coll, out stat, out diag);

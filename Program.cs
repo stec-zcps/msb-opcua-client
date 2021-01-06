@@ -15,7 +15,7 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
             reconfigure = true;
         }        
 
-        public static void FunktionCb(FunctionCallInfo info)
+        public static void functionRead(FunctionCallInfo info)
         {            
             var nodeId = info.Function.Id.Substring(("read_").Length);
             object val;
@@ -36,46 +36,15 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
             myMsbClient.PublishAsync(myMsbApplication, eventData);            
         }
 
-        public static void FunktionMethod(List<object> parameter, FunctionCallInfo info)
+        public static void functionMethod(List<object> parameter, FunctionCallInfo info)
         {
             var nodeId = info.Function.Id.Substring(("method_").Length);
 
             client.callMethod(nodeId);
         }
-
-        public static void functionWriteString(string val, FunctionCallInfo info)
+        public static void functionWriteT<T>([Fraunhofer.IPA.MSB.Client.API.Attributes.MsbFunctionParameter(Name = "val")]T val, FunctionCallInfo info)
         {
-            functionWriteObject(val, info);
-        }
-
-        public static void functionWriteInt(int val, FunctionCallInfo info)
-        {
-            functionWriteObject(val, info);
-        }
-
-        public static void functionWriteUInt(uint val, FunctionCallInfo info)
-        {
-            functionWriteObject(val, info);
-        }
-
-        public static void functionWriteDouble(double val, FunctionCallInfo info)
-        {
-            functionWriteObject(val, info);
-        }
-
-        public static void functionWriteFloat(float val, FunctionCallInfo info)
-        {
-            functionWriteObject(val, info);
-        }
-
-        public static void functionWriteBoolean(bool val, FunctionCallInfo info)
-        {
-            functionWriteObject(val, info);
-        }
-
-        public static void functionWriteObject(object val, FunctionCallInfo info)
-        {
-            var nodeId = info.Function.Id.Substring(("read_").Length);
+            var nodeId = info.Function.Id.Substring(("write_").Length);
             
             client.write(nodeId, val);
         }
@@ -92,17 +61,7 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
             if (dt == null) return null;
 
-            string ident = "";
-
-            if (dt == typeof(int)) ident = "functionWriteInt";
-            else if (dt == typeof(uint)) ident = "functionWriteUInt";
-            else if (dt == typeof(bool)) ident = "functionWriteBoolean";
-            else if (dt == typeof(float)) ident = "functionWriteFloat";
-            else if (dt == typeof(double)) ident = "functionWriteDouble";
-            else if (dt == typeof(string)) ident = "functionWriteString";
-            else return null;
-
-            return typeof(Program).GetMethod(ident);
+            return typeof(Program).GetMethod("functionWriteT").MakeGenericMethod(dt);
         }
 
         public static Event EventAusNodeId(string nodeId)
@@ -271,7 +230,7 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
             if (readNodes != null)
             {
-                System.Reflection.MethodInfo m = typeof(Program).GetMethod("FunktionCb");
+                System.Reflection.MethodInfo m = typeof(Program).GetMethod("functionRead");
                 
                 readEvents = new Dictionary<string, Event>();
 
@@ -317,7 +276,7 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
             if (methods != null)
             {
-                System.Reflection.MethodInfo m = typeof(Program).GetMethod("FunktionMethod");
+                System.Reflection.MethodInfo m = typeof(Program).GetMethod("functionMethod");
 
                 foreach (var d in methods)
                 {
