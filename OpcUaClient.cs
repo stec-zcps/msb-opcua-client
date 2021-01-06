@@ -60,6 +60,7 @@ public class OpcUaClient
         switch((uint)nodeId.Identifier)
         {    
             case 1: return typeof(Boolean);
+            case 7: return typeof(UInt32);
             case 10: return typeof(float);
             case 11: return typeof(Double);
             case 12: return typeof(string);
@@ -155,6 +156,15 @@ public class OpcUaClient
         var rsp = session.Write(null, coll, out stat, out diag);
 
         return rsp.ServiceResult == Opc.Ua.StatusCodes.Good;
+    }
+
+    public void callMethod(string nodeId)
+    {
+        if (!session.Connected) return;
+
+        var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
+
+        session.Call(nodeId_, nodeId_);
     }
     
     private void Client_KeepAlive(Opc.Ua.Client.Session sender, Opc.Ua.Client.KeepAliveEventArgs e)

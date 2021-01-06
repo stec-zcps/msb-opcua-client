@@ -17,7 +17,7 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
         public static void FunktionCb(FunctionCallInfo info)
         {            
-            var nodeId = info.Function.Id.Substring(("read_").Length);            
+            var nodeId = info.Function.Id.Substring(("read_").Length);
             object val;
             EventData eventData;
 
@@ -34,6 +34,13 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
             }
                         
             myMsbClient.PublishAsync(myMsbApplication, eventData);            
+        }
+
+        public static void FunktionMethod(List<object> parameter, FunctionCallInfo info)
+        {
+            var nodeId = info.Function.Id.Substring(("method_").Length);
+
+            client.callMethod(nodeId);
         }
 
         public static void functionWriteString(string val, FunctionCallInfo info)
@@ -87,38 +94,15 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
             string ident = "";
 
-            if (dt == typeof(int))
-            {
-                ident = "functionWriteInt";
-            } else if (dt == typeof(uint))
-            {
-                ident = "functionWriteUInt";
-            } else if (dt == typeof(bool))
-            {
-                ident = "functionWriteBoolean";
-            } else if (dt == typeof(float))
-            {
-                ident = "functionWriteFloat";
-            } else if (dt == typeof(double))
-            {
-                ident = "functionWriteDouble";
-            } else if (dt == typeof(string))
-            {
-                ident = "functionWriteString";
-            }
+            if (dt == typeof(int)) ident = "functionWriteInt";
+            else if (dt == typeof(uint)) ident = "functionWriteUInt";
+            else if (dt == typeof(bool)) ident = "functionWriteBoolean";
+            else if (dt == typeof(float)) ident = "functionWriteFloat";
+            else if (dt == typeof(double)) ident = "functionWriteDouble";
+            else if (dt == typeof(string)) ident = "functionWriteString";
+            else return null;
 
-            var refl = typeof(Program).GetMethods();
-            System.Reflection.MethodInfo m = null;
-            foreach(var r in refl)
-            {
-                if (r.Name == ident)
-                {
-                    m = r;
-                    break;
-                }
-            }
-
-            return m;
+            return typeof(Program).GetMethod(ident);
         }
 
         public static Event EventAusNodeId(string nodeId)
@@ -194,7 +178,6 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
             return r;
         }
 
-
         public static void OpcUaConnectedHandler(object sender, System.EventArgs e)
         {
             if (!myMsbClient.IsConnected()) return;
@@ -210,7 +193,6 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
             var resp = new EventData(ev_uncon);
             myMsbClient.PublishAsync(myMsbApplication, resp);
         }
-        
 
         static Event ev_con, ev_uncon, ev_err;
 
@@ -223,13 +205,14 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
             myMsbApplication.AddConfigurationParameter("opcua.client.readNodes", new ConfigurationParameterValue(new List<ReadNode>()));
             myMsbApplication.AddConfigurationParameter("opcua.client.writeNodes", new ConfigurationParameterValue(new List<WriteNode>()));
             myMsbApplication.AddConfigurationParameter("opcua.client.monitorNodes", new ConfigurationParameterValue(new List<MonitorNode>()));
+            myMsbApplication.AddConfigurationParameter("opcua.client.methods", new ConfigurationParameterValue(new List<Method>()));
         }
 
         static void addStandardEvents()
         {
             ev_uncon = new Event("OPCUA_No_Conn", "No connection to OPC UA Server", "", typeof(string));
             ev_con = new Event("OPCUA_Conn", "Connection to OPC UA Server", "", typeof(string));
-            ev_err = new Event("OPCUA_Error", "", "", typeof(string));
+            ev_err = new Event("OPCUA_Error", "OPC UA Error", "", typeof(string));
             myMsbApplication.AddEvent(ev_uncon);
             myMsbApplication.AddEvent(ev_con);
             myMsbApplication.AddEvent(ev_err);
@@ -288,13 +271,8 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
             if (readNodes != null)
             {
-                var refl = typeof(Program).GetMethods();
-                System.Reflection.MethodInfo m = null;
-                foreach(var r in refl)
-                {
-                    if (r.Name == "FunktionCb") m = r;
-                }
-
+                System.Reflection.MethodInfo m = typeof(Program).GetMethod("FunktionCb");
+                
                 readEvents = new Dictionary<string, Event>();
 
                 foreach (var d in readNodes)
@@ -320,7 +298,6 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
             if (writeNodes != null)
             {
-                var refl = typeof(Program).GetMethods();
                 System.Reflection.MethodInfo m = null;
 
                 foreach (var d in writeNodes)
@@ -328,9 +305,25 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
                     if (d == null) continue;
 
                     m = CbFunktionNachDatentyp(d.nodeId);
+                    
                     if (m == null) continue;
 
                     var f = new Function("write_" + d.nodeId, d.name, "", m, null);
+                    myMsbApplication.AddFunction(f);
+                }
+            }
+
+            var methods = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<WriteNode>>();
+
+            if (methods != null)
+            {
+                System.Reflection.MethodInfo m = typeof(Program).GetMethod("FunktionMethod");
+
+                foreach (var d in methods)
+                {
+                    if (d == null) continue;
+
+                    var f = new Function("method_" + d.nodeId, d.name, "", m, null);
                     myMsbApplication.AddFunction(f);
                 }
             }

@@ -17,9 +17,7 @@ public class Node
 
 public class ReadNode : Node
 {
-    public ReadNode(){
-        
-    }
+
 }
 
 public class WriteNode : Node
@@ -30,4 +28,9 @@ public class WriteNode : Node
 public class MonitorNode : Node
 {
     public string samplingInterval, queueSize;
+}
+
+public class Method : Node
+{
+
 }
