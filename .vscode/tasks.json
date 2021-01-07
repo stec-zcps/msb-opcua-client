@@ -21,7 +21,9 @@
                 "publish",
                 "${workspaceFolder}/msb-opcua-client.csproj",
                 "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "/consoleloggerparameters:NoSummary",
+                "/property:PublishSingleFile=true",
+                "/property:RuntimeIdentifier=win-x64"
             ],
             "problemMatcher": "$msCompile"
         },

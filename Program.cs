@@ -180,6 +180,30 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
         public static bool run, reconfigure;
         static void Main(string[] args)
         {
+            if (args.Length != 1)
+            {
+                Console.WriteLine("Path to service description file required as first argument.");
+                return;
+            }
+
+            if (!System.IO.File.Exists(args[0]))
+            {
+                Console.WriteLine("Service description file does not exist. Creating template with new UUID. Exiting afterwards.");
+                var s = new Service()
+                {
+                    class_ = "Application",
+                    uuid = System.Guid.NewGuid().ToString(),
+                    name = "OPCUA-Websocket-Client",
+                    description = "OPCUA-Websocket-Client",
+                    token = System.Guid.NewGuid().ToString(),
+                    target_interface = "http://ws.msb.dia.cell.vfk.fraunhofer.de"
+                };
+                
+                System.IO.File.WriteAllText(args[0].ToString(), Newtonsoft.Json.JsonConvert.SerializeObject(s));
+
+                return;
+            }
+
             Start:
 
             var c_file = System.IO.File.ReadAllText(args[0]);
