@@ -44,7 +44,6 @@ public class OpcUaClient
         var endpoint = new Opc.Ua.ConfiguredEndpoint(null, selectedEndpoint, endpointConfiguration);
         session = Opc.Ua.Client.Session.Create(application.ApplicationConfiguration, endpoint, false, application.ApplicationName, 60000, new Opc.Ua.UserIdentity(new Opc.Ua.AnonymousIdentityToken()), null).Result;
         session.KeepAlive += Callback_KeepAlive;
-        subscription = new Opc.Ua.Client.Subscription(session.DefaultSubscription) { PublishingInterval = 100 };
     }
 
     public void EndSession()
@@ -86,18 +85,21 @@ public class OpcUaClient
     Opc.Ua.Client.Session session;
     Opc.Ua.Client.Subscription subscription;
 
-    public void addAndCreateSubscription()
+    public void generateSubscription(int publishingInterval)
     {
+        subscription = new Opc.Ua.Client.Subscription(session.DefaultSubscription) { PublishingInterval = publishingInterval };
         session.AddSubscription(subscription);
         subscription.Create();
     }
 
-    public void monitorItem(string nodeId, Opc.Ua.Client.MonitoredItemNotificationEventHandler handler)
+    public void monitorItem(string nodeId, int samplingInterval, uint queueSize, Opc.Ua.Client.MonitoredItemNotificationEventHandler handler)
     {
         var item = new Opc.Ua.Client.MonitoredItem(subscription.DefaultItem)
                             {
                                 RelativePath = "",
-                                StartNodeId = Opc.Ua.NodeId.Parse(nodeId)
+                                StartNodeId = Opc.Ua.NodeId.Parse(nodeId),
+                                SamplingInterval = samplingInterval,
+                                QueueSize = queueSize
                             };
         item.Notification += handler;
         subscription.AddItem(item);

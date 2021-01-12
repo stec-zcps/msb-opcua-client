@@ -27,7 +27,8 @@ public class WriteNode : Node
 
 public class MonitorNode : Node
 {
-    public string samplingInterval, queueSize;
+    public int samplingInterval = 1000;
+    public uint queueSize = 1;
 }
 
 public class Method : Node

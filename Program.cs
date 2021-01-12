@@ -6,7 +6,7 @@ public class Program
 {
     public static void msbCallback_Connected(object sender, System.EventArgs e)
     {
-        myMsbClient.RegisterAsync(myMsbApplication);
+        msbClient.RegisterAsync(msbApplication);
     }  
 
     public static void msbCallback_ConfigurationEvent(object sender, Fraunhofer.IPA.MSB.Client.API.EventArgs.ConfigurationParameterReceivedEventArgs e)
@@ -20,7 +20,7 @@ public class Program
         object val;
         EventData eventData;
 
-        if(client.readToObject(nodeId, out val))
+        if(opcUaClient.readToObject(nodeId, out val))
         {
             eventData = new EventData(readEvents[nodeId]) {
                 CorrelationId = info.CorrelationId,
@@ -32,27 +32,27 @@ public class Program
             };
         }
                     
-        myMsbClient.PublishAsync(myMsbApplication, eventData);            
+        msbClient.PublishAsync(msbApplication, eventData);            
     }
 
     public static void msbCallback_FunctionCallMethod(List<object> parameter, FunctionCallInfo info)
     {
         var nodeId = info.Function.Id.Substring(("method_").Length);
 
-        client.callMethod(nodeId);
+        opcUaClient.callMethod(nodeId);
     }
     public static void msbCallback_FunctionWriteNode_Generic<T>([Fraunhofer.IPA.MSB.Client.API.Attributes.MsbFunctionParameter(Name = "val")]T val, FunctionCallInfo info)
     {
         var nodeId = info.Function.Id.Substring(("write_").Length);
         
-        client.write(nodeId, val);
+        opcUaClient.writeNode(nodeId, val);
     }
 
     public static System.Reflection.MethodInfo fitCbFunctionWithDatatype(string nodeId)
     {
         Opc.Ua.Node node;
         
-        if (!client.readToNode(nodeId, out node)) return null;
+        if (!opcUaClient.readToNode(nodeId, out node)) return null;
 
         if (node.GetType() != typeof(Opc.Ua.VariableNode)) return null;
 
@@ -67,7 +67,7 @@ public class Program
     {
         Opc.Ua.Node node;
         
-        if (!client.readToNode(nodeId, out node)) return null;
+        if (!opcUaClient.readToNode(nodeId, out node)) return null;
 
         if (node.GetType() != typeof(Opc.Ua.VariableNode)) return null;
 
@@ -90,18 +90,18 @@ public class Program
             ev.Value = value.Value;
             try
             {
-                myMsbClient.PublishAsync(myMsbApplication, ev);
+                msbClient.PublishAsync(msbApplication, ev);
             } catch {
 
             }                
         }
     }
 
-    public static Fraunhofer.IPA.MSB.Client.Websocket.MsbClient myMsbClient;
+    public static Fraunhofer.IPA.MSB.Client.Websocket.MsbClient msbClient;
 
-    public static Application myMsbApplication;
+    public static Application msbApplication;
 
-    public static OpcUaClient client;
+    public static OpcUaClient opcUaClient;
 
     public static Dictionary<string, Event> monitoredEvents, readEvents;
 
@@ -138,32 +138,33 @@ public class Program
 
     public static void opcuaCallback_Connected(object sender, System.EventArgs e)
     {
-        if (!myMsbClient.IsConnected()) return;
+        if (!msbClient.IsConnected()) return;
 
         var resp = new EventData(msbEvent_OpcUaConnected);
-        myMsbClient.PublishAsync(myMsbApplication, resp);
+        msbClient.PublishAsync(msbApplication, resp);
     }
 
     public static void opcuaCallback_Disconnected(object sender, System.EventArgs e)
     {
-        if (!myMsbClient.IsConnected()) return;
+        if (!msbClient.IsConnected()) return;
 
         var resp = new EventData(msbEvent_OpcUaDisconnected);
-        myMsbClient.PublishAsync(myMsbApplication, resp);
+        msbClient.PublishAsync(msbApplication, resp);
     }
 
     static Event msbEvent_OpcUaConnected, msbEvent_OpcUaDisconnected, msbEvent_OpcUaError;
 
     static void addStandardConfigurationParameters()
     {
-        myMsbApplication.AddConfigurationParameter("opcua.server.url", new ConfigurationParameterValue(""));
-        myMsbApplication.AddConfigurationParameter("opcua.server.security", new ConfigurationParameterValue(""));
-        myMsbApplication.AddConfigurationParameter("opcua.server.user", new ConfigurationParameterValue(""));
-        myMsbApplication.AddConfigurationParameter("opcua.server.password", new ConfigurationParameterValue(""));
-        myMsbApplication.AddConfigurationParameter("opcua.client.readNodes", new ConfigurationParameterValue(new List<ReadNode>()));
-        myMsbApplication.AddConfigurationParameter("opcua.client.writeNodes", new ConfigurationParameterValue(new List<WriteNode>()));
-        myMsbApplication.AddConfigurationParameter("opcua.client.monitorNodes", new ConfigurationParameterValue(new List<MonitorNode>()));
-        myMsbApplication.AddConfigurationParameter("opcua.client.methods", new ConfigurationParameterValue(new List<Method>()));
+        msbApplication.AddConfigurationParameter("opcua.server.url", new ConfigurationParameterValue(""));
+        msbApplication.AddConfigurationParameter("opcua.server.security", new ConfigurationParameterValue(""));
+        msbApplication.AddConfigurationParameter("opcua.server.user", new ConfigurationParameterValue(""));
+        msbApplication.AddConfigurationParameter("opcua.server.password", new ConfigurationParameterValue(""));
+        msbApplication.AddConfigurationParameter("opcua.subscription.publishingInterval", new ConfigurationParameterValue((int)1000));
+        msbApplication.AddConfigurationParameter("opcua.client.readNodes", new ConfigurationParameterValue(new List<ReadNode>()));
+        msbApplication.AddConfigurationParameter("opcua.client.writeNodes", new ConfigurationParameterValue(new List<WriteNode>()));
+        msbApplication.AddConfigurationParameter("opcua.client.monitorNodes", new ConfigurationParameterValue(new List<MonitorNode>()));
+        msbApplication.AddConfigurationParameter("opcua.client.methods", new ConfigurationParameterValue(new List<Method>()));
     }
 
     static void addStandardEvents()
@@ -171,9 +172,9 @@ public class Program
         msbEvent_OpcUaDisconnected = new Event("OPCUA_No_Conn", "No connection to OPC UA Server", "", typeof(string));
         msbEvent_OpcUaConnected = new Event("OPCUA_Conn", "Connection to OPC UA Server", "", typeof(string));
         msbEvent_OpcUaError = new Event("OPCUA_Error", "OPC UA Error", "", typeof(string));
-        myMsbApplication.AddEvent(msbEvent_OpcUaDisconnected);
-        myMsbApplication.AddEvent(msbEvent_OpcUaConnected);
-        myMsbApplication.AddEvent(msbEvent_OpcUaError);
+        msbApplication.AddEvent(msbEvent_OpcUaDisconnected);
+        msbApplication.AddEvent(msbEvent_OpcUaConnected);
+        msbApplication.AddEvent(msbEvent_OpcUaError);
     }
 
     public static bool run, reconfigure;
@@ -208,24 +209,24 @@ public class Program
         var c_file = System.IO.File.ReadAllText(args[0]);
         var c = Newtonsoft.Json.JsonConvert.DeserializeObject<Service>(c_file);
 
-        myMsbApplication = new Application(c.uuid, c.name, c.token, c.token);
+        msbApplication = new Application(c.uuid, c.name, c.token, c.token);
 
-        if (!System.IO.File.Exists(myMsbApplication.ConfigurationPersistencePath))
+        if (!System.IO.File.Exists(msbApplication.ConfigurationPersistencePath))
         {
             addStandardConfigurationParameters();
-            myMsbApplication.Configuration.SaveToFile(myMsbApplication.ConfigurationPersistencePath);
+            msbApplication.Configuration.SaveToFile(msbApplication.ConfigurationPersistencePath);
         } else {
 
         }
 
-        myMsbApplication.AutoPersistConfiguration = true;
+        msbApplication.AutoPersistConfiguration = true;
 
         addStandardEvents();
 
-        client = new OpcUaClient((string)myMsbApplication.Configuration.Parameters["opcua.server.url"].Value, c.name);
-        client.CreateSession();
+        opcUaClient = new OpcUaClient((string)msbApplication.Configuration.Parameters["opcua.server.url"].Value, c.name);
+        opcUaClient.CreateSession();
     
-        var monitorNodes = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value).ToObject<List<MonitorNode>>();
+        var monitorNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value).ToObject<List<MonitorNode>>();
 
         if (monitorNodes != null)
         {
@@ -241,19 +242,19 @@ public class Program
 
                 e.Id = "monitored_" + e.Id;
                 monitoredEvents.Add(d.nodeId, e);
-                myMsbApplication.AddEvent(e);
+                msbApplication.AddEvent(e);
 
-                client.monitorItem(d.nodeId, opcuaCallback_monitoredItemNotification);               
+                opcUaClient.monitorItem(d.nodeId, d.samplingInterval, d.queueSize, opcuaCallback_monitoredItemNotification);               
             }
 
-            client.addAndCreateSubscription();
+            opcUaClient.generateSubscription((int)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);
         }
 
-        var readNodes = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.readNodes"].Value).ToObject<List<ReadNode>>();
+        var readNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.readNodes"].Value).ToObject<List<ReadNode>>();
 
         if (readNodes != null)
         {
-            System.Reflection.MethodInfo m = typeof(Program).GetMethod("msbCallback_FunctionReadNode");
+            var m = typeof(Program).GetMethod("msbCallback_FunctionReadNode");
             
             readEvents = new Dictionary<string, Event>();
 
@@ -268,15 +269,15 @@ public class Program
                 e.Id = "read_" + e.Id;
                 e.Name = "Response - " + e.Name;
                 readEvents.Add(d.nodeId, e);
-                myMsbApplication.AddEvent(e);
+                msbApplication.AddEvent(e);
                 var resp = new string[1];
                 resp[0] = e.Id;
                 var f = new Function("read_" + d.nodeId, d.name, "", resp, m, null);
-                myMsbApplication.AddFunction(f);
+                msbApplication.AddFunction(f);
             }
         }
 
-        var writeNodes = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.writeNodes"].Value).ToObject<List<WriteNode>>();
+        var writeNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.writeNodes"].Value).ToObject<List<WriteNode>>();
 
         if (writeNodes != null)
         {
@@ -291,30 +292,30 @@ public class Program
                 if (m == null) continue;
 
                 var f = new Function("write_" + d.nodeId, d.name, "", m, null);
-                myMsbApplication.AddFunction(f);
+                msbApplication.AddFunction(f);
             }
         }
 
-        var methods = ((Newtonsoft.Json.Linq.JArray)myMsbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<WriteNode>>();
+        var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<WriteNode>>();
 
         if (methods != null)
         {
-            System.Reflection.MethodInfo m = typeof(Program).GetMethod("msbCallback_FunctionCallMethod");
+            var m = typeof(Program).GetMethod("msbCallback_FunctionCallMethod");
 
             foreach (var d in methods)
             {
                 if (d == null) continue;
 
                 var f = new Function("method_" + d.nodeId, d.name, "", m, null);
-                myMsbApplication.AddFunction(f);
+                msbApplication.AddFunction(f);
             }
         }
 
-        myMsbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
-        myMsbClient.Connected += msbCallback_Connected;
-        myMsbClient.ConfigurationParameterReceived += msbCallback_ConfigurationEvent;
+        msbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
+        msbClient.Connected += msbCallback_Connected;
+        msbClient.ConfigurationParameterReceived += msbCallback_ConfigurationEvent;
 
-        myMsbClient.ConnectAsync();
+        msbClient.ConnectAsync();
 
         run = true;
 
@@ -324,8 +325,8 @@ public class Program
         }
 
         try {
-            myMsbClient.Disconnect();
-            client.EndSession();
+            msbClient.Disconnect();
+            opcUaClient.EndSession();
         } catch {
 
         }
