@@ -38,11 +38,18 @@ public class OpcUaClient
         selectedEndpoint = Opc.Ua.Client.CoreClientUtils.SelectEndpoint(server, false);
     }
 
-    public void CreateSession()
+    public void CreateSession(string user, string password)
     {
         var endpointConfiguration = Opc.Ua.EndpointConfiguration.Create(application.ApplicationConfiguration);
         var endpoint = new Opc.Ua.ConfiguredEndpoint(null, selectedEndpoint, endpointConfiguration);
-        session = Opc.Ua.Client.Session.Create(application.ApplicationConfiguration, endpoint, false, application.ApplicationName, 60000, new Opc.Ua.UserIdentity(new Opc.Ua.AnonymousIdentityToken()), null).Result;
+        Opc.Ua.UserIdentity userIdentity;
+        if (user != "")
+        {
+            userIdentity = new Opc.Ua.UserIdentity(user, password);
+        } else {
+            userIdentity = new Opc.Ua.UserIdentity(new Opc.Ua.AnonymousIdentityToken());
+        }
+        session = Opc.Ua.Client.Session.Create(application.ApplicationConfiguration, endpoint, false, application.ApplicationName, 60000, userIdentity, null).Result;
         session.KeepAlive += Callback_KeepAlive;
     }
 
