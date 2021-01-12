@@ -43,7 +43,7 @@ public class OpcUaClient
         var endpointConfiguration = Opc.Ua.EndpointConfiguration.Create(application.ApplicationConfiguration);
         var endpoint = new Opc.Ua.ConfiguredEndpoint(null, selectedEndpoint, endpointConfiguration);
         session = Opc.Ua.Client.Session.Create(application.ApplicationConfiguration, endpoint, false, application.ApplicationName, 60000, new Opc.Ua.UserIdentity(new Opc.Ua.AnonymousIdentityToken()), null).Result;
-        session.KeepAlive += Client_KeepAlive;
+        session.KeepAlive += Callback_KeepAlive;
         subscription = new Opc.Ua.Client.Subscription(session.DefaultSubscription) { PublishingInterval = 100 };
     }
 
@@ -53,7 +53,7 @@ public class OpcUaClient
         session.Dispose();
     }
 
-    public static Type DatentypAusNodeId(Opc.Ua.NodeId nodeId)
+    public static Type TranslateNodeIdtoDatatype(Opc.Ua.NodeId nodeId)
     {
         if (nodeId.NamespaceIndex != 0 || nodeId.IdType != Opc.Ua.IdType.Numeric) return null;
         
@@ -86,7 +86,7 @@ public class OpcUaClient
     Opc.Ua.Client.Session session;
     Opc.Ua.Client.Subscription subscription;
 
-    public void andAndCreateSubscription()
+    public void addAndCreateSubscription()
     {
         session.AddSubscription(subscription);
         subscription.Create();
@@ -103,7 +103,7 @@ public class OpcUaClient
         subscription.AddItem(item);
     }
 
-    public bool read(string nodeId, out Opc.Ua.Node node)
+    public bool readToNode(string nodeId, out Opc.Ua.Node node)
     {
         node = null;
 
@@ -123,7 +123,7 @@ public class OpcUaClient
         return node != null;
     }
 
-    public bool readValue(string nodeId, out object value)
+    public bool readToObject(string nodeId, out object value)
     {
         if (!session.Connected)
         {
@@ -145,7 +145,7 @@ public class OpcUaClient
         return false;
     }
 
-    public bool write(string nodeId, object value)
+    public bool writeNode(string nodeId, object value)
     {
         if (!session.Connected) return false;
 
@@ -176,24 +176,21 @@ public class OpcUaClient
         session.Call(nodeId_, nodeId_);
     }
     
-    private void Client_KeepAlive(Opc.Ua.Client.Session sender, Opc.Ua.Client.KeepAliveEventArgs e)
+    private void Callback_KeepAlive(Opc.Ua.Client.Session sender, Opc.Ua.Client.KeepAliveEventArgs e)
     {
         if (e.Status != null && Opc.Ua.ServiceResult.IsNotGood(e.Status))
         {
-            Console.WriteLine("{0} {1}/{2}", e.Status, sender.OutstandingRequestCount, sender.DefunctRequestCount);
-
             if (Disconnected != null) Disconnected.Invoke(sender, e);
 
             if (reconnectHandler == null)
             {
-                Console.WriteLine("--- RECONNECTING ---");
                 reconnectHandler = new Opc.Ua.Client.SessionReconnectHandler();
-                reconnectHandler.BeginReconnect(sender, 5000, Client_ReconnectComplete);
+                reconnectHandler.BeginReconnect(sender, 5000, Callback_Reconnect);
             }
         }
     }
 
-    private void Client_ReconnectComplete(object sender, EventArgs e)
+    private void Callback_Reconnect(object sender, EventArgs e)
     {
         // ignore callbacks from discarded objects.
         if (!Object.ReferenceEquals(sender, reconnectHandler)) return;
@@ -203,7 +200,5 @@ public class OpcUaClient
         reconnectHandler = null;
 
         if (Connected != null) Connected.Invoke(sender, e);
-
-        Console.WriteLine("--- RECONNECTED ---");
     }
 }
