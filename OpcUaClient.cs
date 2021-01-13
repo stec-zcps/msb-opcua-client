@@ -112,6 +112,80 @@ public class OpcUaClient
         subscription.AddItem(item);
     }
 
+    public bool getSubNodes(string nodeId, out Opc.Ua.ReferenceDescriptionCollection refCollection)
+    {
+        refCollection = null;
+
+        if (!session.Connected)
+        {
+            return false;
+        }
+        
+        var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
+
+        var browser = new Opc.Ua.Client.Browser(session);
+        var refType = new Opc.Ua.NodeId(46, 0);
+
+        browser.BrowseDirection = Opc.Ua.BrowseDirection.Forward;
+        browser.NodeClassMask = (int)Opc.Ua.NodeClass.Variable;
+        browser.ReferenceTypeId = Opc.Ua.ReferenceTypeIds.HierarchicalReferences;
+
+        refCollection = browser.Browse(nodeId_);
+
+        return refCollection.Count > 0;
+    }
+
+    public bool getInputOutputParameters(string nodeId, out Type inputObjekt, out Type outputObjekt)
+    {
+        inputObjekt = null;
+        outputObjekt = null;
+
+        if (!session.Connected)
+        {
+            return false;
+        }
+
+        Opc.Ua.ReferenceDescriptionCollection refCollection;
+
+        if (!getSubNodes(nodeId, out refCollection)) return false;
+
+        foreach (var reference in refCollection)
+        {
+            if (reference.BrowseName.NamespaceIndex != 0) continue;
+
+            if (reference.BrowseName.Name == "InputArguments")
+            {
+                var nodeId_ = new Opc.Ua.NodeId(reference.NodeId.Identifier, reference.NodeId.NamespaceIndex);
+                var val = session.ReadValue(nodeId_);
+                var dic = new System.Collections.Generic.Dictionary<string, Type>();
+
+                foreach (var l in (Opc.Ua.ExtensionObject[])(val.Value))
+                {
+                    var b = (Opc.Ua.Argument)l.Body;
+                    var typ = TranslateNodeIdtoDatatype(b.DataType);
+                    dic.Add(b.Name, typ);
+                }
+
+                inputObjekt = TypeBuilderNamespace.MyTypeBuilder.CompileResultType(dic);
+            } else if (reference.BrowseName.Name == "OutputArguments") {
+                var nodeId_ = new Opc.Ua.NodeId(reference.NodeId.Identifier, reference.NodeId.NamespaceIndex);
+                var val = session.ReadValue(nodeId_);
+                var dic = new System.Collections.Generic.Dictionary<string, Type>();
+
+                foreach (var l in (Opc.Ua.ExtensionObject[])(val.Value))
+                {
+                    var b = (Opc.Ua.Argument)l.Body;
+                    var typ = TranslateNodeIdtoDatatype(b.DataType);
+                    dic.Add(b.Name, typ);
+                }
+
+                outputObjekt = TypeBuilderNamespace.MyTypeBuilder.CompileResultType(dic);
+            }
+        }
+
+        return inputObjekt != null|| outputObjekt != null;
+    }
+
     public bool readToNode(string nodeId, out Opc.Ua.Node node)
     {
         node = null;
@@ -176,13 +250,26 @@ public class OpcUaClient
         return rsp.ServiceResult == Opc.Ua.StatusCodes.Good;
     }
 
-    public void callMethod(string nodeId)
+    public System.Collections.Generic.IList<object> callMethod(Opc.Ua.NodeId objectNodeId, string methodNodeId, params object[] args)
     {
-        if (!session.Connected) return;
+        if (!session.Connected) return null;
 
-        var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
+        
+        /*var m = new Opc.Ua.CallMethodRequest() {
+            InputArguments = new Opc.Ua.VariantCollection(inputArguments),
+            ObjectId = Opc.Ua.NodeId.Parse(objectNodeId),
+            MethodId = Opc.Ua.NodeId.Parse(methodNodeId)
+        };
 
-        session.Call(nodeId_, nodeId_);
+        var v = new Opc.Ua.CallMethodRequestCollection(){ m };
+
+        var res = new Opc.Ua.CallMethodResultCollection() {
+            new Opc.Ua.CallMethodResult()
+        };
+
+        session.GetType().GetMethod("Call").Invoke()*/
+
+        return session.Call(objectNodeId, Opc.Ua.NodeId.Parse(methodNodeId), args);
     }
     
     private void Callback_KeepAlive(Opc.Ua.Client.Session sender, Opc.Ua.Client.KeepAliveEventArgs e)

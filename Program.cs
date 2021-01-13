@@ -35,12 +35,71 @@ public class Program
         msbClient.PublishAsync(msbApplication, eventData);            
     }
 
-    public static void msbCallback_FunctionCallMethod(List<object> parameter, FunctionCallInfo info)
+    public static void msbCallback_FunctionCallMethod(FunctionCallInfo info)
     {
         var nodeId = info.Function.Id.Substring(("method_").Length);
+        var objNodeId = methodObjektNodeIds[nodeId];
 
-        opcUaClient.callMethod(nodeId);
+        var res = opcUaClient.callMethod(objNodeId, nodeId);
+
+        if (methodOutputTypes.ContainsKey(nodeId))
+        {
+            var output = TypeBuilderNamespace.MyTypeBuilder.CreateNewObject(methodOutputTypes[nodeId]);
+            var felder_output = methodOutputTypes[nodeId].GetFields();
+            for(int i = 0; i < felder_output.Length; ++i)
+            {
+                felder_output[i].SetValue(output, res[i]);
+            }
+
+            EventData eventData;
+            eventData = new EventData(methodEvents[nodeId]) {
+                CorrelationId = info.CorrelationId,
+                Value = output
+            };
+
+            msbClient.PublishAsync(msbApplication, eventData);
+        }
     }
+    public static void msbCallback_FunctionCallMethod_Generic<T>([Fraunhofer.IPA.MSB.Client.API.Attributes.MsbFunctionParameter(Name = "val")]T val, FunctionCallInfo info)
+    {
+        var nodeId = info.Function.Id.Substring(("method_").Length);
+        var objNodeId = methodObjektNodeIds[nodeId];
+
+        var t = methodInputTypes[nodeId];
+
+        var felder = t.GetFields();
+        var felder_T = typeof(T).GetFields();
+
+        if (felder.Length != felder_T.Length) return;
+
+        object[] args = new object[felder.Length];
+
+        for(int i = 0; i < felder.Length; ++i)
+        {
+            args[i] = felder[i].GetValue(val);
+        }
+        
+        var res = opcUaClient.callMethod(objNodeId, nodeId, args);
+
+        if (methodOutputTypes.ContainsKey(nodeId))
+        {
+            var output = TypeBuilderNamespace.MyTypeBuilder.CreateNewObject(methodOutputTypes[nodeId]);
+            var felder_output = methodOutputTypes[nodeId].GetFields();
+            for(int i = 0; i < felder_output.Length; ++i)
+            {
+                felder_output[i].SetValue(output, res[i]);
+            }
+
+            EventData eventData;
+            eventData = new EventData(methodEvents[nodeId]) {
+                CorrelationId = info.CorrelationId,
+                Value = output
+            };
+
+            msbClient.PublishAsync(msbApplication, eventData);
+        }
+    }
+
     public static void msbCallback_FunctionWriteNode_Generic<T>([Fraunhofer.IPA.MSB.Client.API.Attributes.MsbFunctionParameter(Name = "val")]T val, FunctionCallInfo info)
     {
         var nodeId = info.Function.Id.Substring(("write_").Length);
@@ -103,7 +162,9 @@ public class Program
 
     public static OpcUaClient opcUaClient;
 
-    public static Dictionary<string, Event> monitoredEvents, readEvents;
+    public static Dictionary<string, Event> monitoredEvents, readEvents, methodEvents;
+    public static Dictionary<string, Opc.Ua.NodeId> methodObjektNodeIds;
+    public static Dictionary<string, Type> methodInputTypes, methodOutputTypes;
 
     public static Dictionary<String, ConfigurationParameterValue> ConfigParametersFromObject(string path, char splitting, object obj)
     {
@@ -160,7 +221,7 @@ public class Program
         msbApplication.AddConfigurationParameter("opcua.server.security", new ConfigurationParameterValue(""));
         msbApplication.AddConfigurationParameter("opcua.server.user", new ConfigurationParameterValue(""));
         msbApplication.AddConfigurationParameter("opcua.server.password", new ConfigurationParameterValue(""));
-        msbApplication.AddConfigurationParameter("opcua.subscription.publishingInterval", new ConfigurationParameterValue((int)1000));
+        msbApplication.AddConfigurationParameter("opcua.subscription.publishingInterval", new ConfigurationParameterValue((Int32)1000));
         msbApplication.AddConfigurationParameter("opcua.client.readNodes", new ConfigurationParameterValue(new List<ReadNode>()));
         msbApplication.AddConfigurationParameter("opcua.client.writeNodes", new ConfigurationParameterValue(new List<WriteNode>()));
         msbApplication.AddConfigurationParameter("opcua.client.monitorNodes", new ConfigurationParameterValue(new List<MonitorNode>()));
@@ -225,6 +286,8 @@ public class Program
 
         opcUaClient = new OpcUaClient((string)msbApplication.Configuration.Parameters["opcua.server.url"].Value, c.name);
         opcUaClient.CreateSession((string)msbApplication.Configuration.Parameters["opcua.server.user"].Value, (string)msbApplication.Configuration.Parameters["opcua.server.password"].Value);
+
+        //opcUaClient.callMethod("ns=2;s=Demo.Method", "ns=2;s=Demo.Method.Multiply", new List<Opc.Ua.Variant>(){new Opc.Ua.Variant(2.0), new Opc.Ua.Variant(3.0)});
     
         var monitorNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value).ToObject<List<MonitorNode>>();
 
@@ -247,7 +310,8 @@ public class Program
                 opcUaClient.monitorItem(d.nodeId, d.samplingInterval, d.queueSize, opcuaCallback_monitoredItemNotification);               
             }
 
-            opcUaClient.generateSubscription((int)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);
+            //opcUaClient.generateSubscription((Int32)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);
+            opcUaClient.generateSubscription(1000);
         }
 
         var readNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.readNodes"].Value).ToObject<List<ReadNode>>();
@@ -296,17 +360,57 @@ public class Program
             }
         }
 
-        var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<WriteNode>>();
+        var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<Method>>();
 
         if (methods != null)
         {
-            var m = typeof(Program).GetMethod("msbCallback_FunctionCallMethod");
+            System.Reflection.MethodInfo m;
+
+            methodEvents = new Dictionary<string, Event>();
+            methodObjektNodeIds = new Dictionary<string, Opc.Ua.NodeId>();
+            methodOutputTypes = new Dictionary<string, Type>();
+            methodInputTypes = new Dictionary<string, Type>();
 
             foreach (var d in methods)
             {
                 if (d == null) continue;
 
-                var f = new Function("method_" + d.nodeId, d.name, "", m, null);
+                methodObjektNodeIds.Add(d.methodNodeId, Opc.Ua.NodeId.Parse(d.objectNodeId));
+
+                m = typeof(Program).GetMethod("msbCallback_FunctionCallMethod");
+                string[] respEvents = null;
+                
+                Type input, output;
+                if (opcUaClient.getInputOutputParameters(d.methodNodeId, out input, out output))
+                {
+                    if (input != null)
+                    {
+                        m = typeof(Program).GetMethod("msbCallback_FunctionCallMethod_Generic").MakeGenericMethod(input);
+                        methodInputTypes.Add(d.methodNodeId, input);
+                    } else {
+                        
+                    }
+
+                    if (output != null)
+                    {
+                        methodOutputTypes.Add(d.methodNodeId, output);
+                        var e = new Event("method_" + d.methodNodeId, "Response - " + d.name, "Method response " + d.name, output);
+                        respEvents = new string[1];
+                        respEvents[0] = e.Id;
+                        methodEvents.Add(d.methodNodeId, e);
+                        msbApplication.AddEvent(e);
+                    }
+                }
+
+                Function f;
+
+                if (respEvents != null)
+                {
+                    f = new Function("method_" + d.methodNodeId, d.name, "Method " + d.name, respEvents, m, null); 
+                } else {
+                    f = new Function("method_" + d.methodNodeId, d.name, "", m, null);
+                }
+
                 msbApplication.AddFunction(f);
             }
         }

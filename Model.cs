@@ -31,7 +31,7 @@ public class MonitorNode : Node
     public uint queueSize = 1;
 }
 
-public class Method : Node
+public class Method
 {
-
+    public string methodNodeId, objectNodeId, name;
 }
