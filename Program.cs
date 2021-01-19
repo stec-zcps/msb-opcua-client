@@ -360,7 +360,7 @@ public class Program
             }
         }
 
-        var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<Method>>();
+        /*var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<Method>>();
 
         if (methods != null)
         {
@@ -413,7 +413,7 @@ public class Program
 
                 msbApplication.AddFunction(f);
             }
-        }
+        }*/
 
         msbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
         msbClient.Connected += msbCallback_Connected;
