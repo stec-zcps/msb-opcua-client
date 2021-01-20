@@ -7,21 +7,22 @@ namespace TypeBuilderNamespace
     {
         public static object CreateNewObject(Type typ)
         {
-            var myType = CompileResultType(typ);
-            var myObject = Activator.CreateInstance(myType);
+            //var myType = CompileResultType(typen);
+            var myObject = Activator.CreateInstance(typ);
             return myObject;
         }
-        public static Type CompileResultType(Type typ)
+        public static Type CompileResultType(System.Collections.Generic.Dictionary<string, Type> typen)
         {
             TypeBuilder tb = GetTypeBuilder();
             ConstructorBuilder constructor = tb.DefineDefaultConstructor(MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName); // NOTE: assuming your list contains Field objects with fields FieldName(string) and FieldType(Type)
-            foreach (var field in typ.GetFields()) CreateProperty(tb, field.Name, field.FieldType);
+            //foreach (var field in typ.GetFields()) CreateProperty(tb, field.Name, field.FieldType);
+            foreach (var typ in typen) CreateProperty(tb, typ.Key, typ.Value);
             Type objectType = tb.CreateType();
             return objectType;
         }
         private static TypeBuilder GetTypeBuilder()
         {
-            var typeSignature = "MyDynamicType";
+            var typeSignature = "Parameter";
             var an = new AssemblyName(typeSignature);
             AssemblyBuilder assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(an, AssemblyBuilderAccess.Run);
             ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule("MainModule");

@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Fraunhofer.IPA.MSB.Client.API.Model;
-
+using Serilog;
+//{"methodNodeId":"ns=2;s=Demo.SetSimulationSpeed","objectNodeId":"ns=2;s=Demo","name":"hallo","handleAsComplexObject":false}
 public class Program
 {
     public static string connInfo(string hostname)
@@ -37,7 +38,7 @@ public class Program
             {
                 a_ += " (Verbindung zu MSB)";
             }
-            antw += (a_ + "\n");
+            antw += (a_ + "\\n");
         }
 
         return antw;
@@ -46,12 +47,17 @@ public class Program
     public static void msbCallback_Connected(object sender, System.EventArgs e)
     {
         msbClient.RegisterAsync(msbApplication);
-    }  
+    }
+
+    public static void msbCallback_RegistrationFailed(object sender, System.EventArgs e)
+    {
+        Console.WriteLine("");
+    }
 
     public static void msbCallback_ConfigurationEvent(object sender, Fraunhofer.IPA.MSB.Client.API.EventArgs.ConfigurationParameterReceivedEventArgs e)
     {
         reconfigure = true;
-    }        
+    }
 
     public static void msbCallback_FunctionReadNode(FunctionCallInfo info)
     {            
@@ -280,6 +286,15 @@ public class Program
     public static bool run, reconfigure;
     static void Main(string[] args)
     {
+        Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .CreateLogger();
+
+            Log.Information("Sample application started");
+
+
         if (args.Length != 1)
         {
             Console.WriteLine("Path to service description file required as first argument.");
@@ -311,7 +326,7 @@ public class Program
         
         var info = connInfo(c.target_interface);
 
-        msbApplication = new Application(c.uuid, c.name, c.description + "\n\nNetzwerkinformationen:\n" + info, c.token);
+        msbApplication = new Application(c.uuid, c.name, c.description + "\\n\\nNetzwerkinformationen:\\n" + info, c.token);
 
         if (!System.IO.File.Exists(msbApplication.ConfigurationPersistencePath))
         {
@@ -466,6 +481,7 @@ public class Program
         msbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
         msbClient.Connected += msbCallback_Connected;
         msbClient.ConfigurationParameterReceived += msbCallback_ConfigurationEvent;
+        msbClient.RegistrationFailed += msbCallback_RegistrationFailed;
 
         msbClient.ConnectAsync();
 

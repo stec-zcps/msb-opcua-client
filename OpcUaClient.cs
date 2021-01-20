@@ -166,7 +166,7 @@ public class OpcUaClient
                     dic.Add(b.Name, typ);
                 }
 
-                inputObjekt = null;//TypeBuilderNamespace.MyTypeBuilder.CompileResultType(dic);
+                inputObjekt = TypeBuilderNamespace.MyTypeBuilder.CompileResultType(dic);
             } else if (reference.BrowseName.Name == "OutputArguments") {
                 var nodeId_ = new Opc.Ua.NodeId(reference.NodeId.Identifier, reference.NodeId.NamespaceIndex);
                 var val = session.ReadValue(nodeId_);
@@ -179,7 +179,7 @@ public class OpcUaClient
                     dic.Add(b.Name, typ);
                 }
 
-                outputObjekt = null;//TypeBuilderNamespace.MyTypeBuilder.CompileResultType(dic);
+                outputObjekt = TypeBuilderNamespace.MyTypeBuilder.CompileResultType(dic);
             }
         }
 
