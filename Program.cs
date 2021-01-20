@@ -270,7 +270,7 @@ public class Program
         var c_file = System.IO.File.ReadAllText(args[0]);
         var c = Newtonsoft.Json.JsonConvert.DeserializeObject<Service>(c_file);
 
-        msbApplication = new Application(c.uuid, c.name, c.token, c.token);
+        msbApplication = new Application(c.uuid, c.name, c.description, c.token);
 
         if (!System.IO.File.Exists(msbApplication.ConfigurationPersistencePath))
         {
@@ -284,8 +284,13 @@ public class Program
 
         addStandardEvents();
 
-        opcUaClient = new OpcUaClient((string)msbApplication.Configuration.Parameters["opcua.server.url"].Value, c.name);
-        opcUaClient.CreateSession((string)msbApplication.Configuration.Parameters["opcua.server.user"].Value, (string)msbApplication.Configuration.Parameters["opcua.server.password"].Value);
+        try {
+            opcUaClient = new OpcUaClient((string)msbApplication.Configuration.Parameters["opcua.server.url"].Value, c.name);
+            opcUaClient.CreateSession((string)msbApplication.Configuration.Parameters["opcua.server.user"].Value, (string)msbApplication.Configuration.Parameters["opcua.server.password"].Value);
+        } catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }        
 
         //opcUaClient.callMethod("ns=2;s=Demo.Method", "ns=2;s=Demo.Method.Multiply", new List<Opc.Ua.Variant>(){new Opc.Ua.Variant(2.0), new Opc.Ua.Variant(3.0)});
     
@@ -310,8 +315,10 @@ public class Program
                 opcUaClient.monitorItem(d.nodeId, d.samplingInterval, d.queueSize, opcuaCallback_monitoredItemNotification);               
             }
 
+            if (opcUaClient != null)
+                opcUaClient.generateSubscription(1000);
             //opcUaClient.generateSubscription((Int32)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);
-            opcUaClient.generateSubscription(1000);
+            
         }
 
         var readNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.readNodes"].Value).ToObject<List<ReadNode>>();
@@ -360,7 +367,7 @@ public class Program
             }
         }
 
-        /*var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<Method>>();
+        var methods = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.methods"].Value).ToObject<List<Method>>();
 
         if (methods != null)
         {
@@ -413,7 +420,7 @@ public class Program
 
                 msbApplication.AddFunction(f);
             }
-        }*/
+        }
 
         msbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
         msbClient.Connected += msbCallback_Connected;
@@ -430,6 +437,11 @@ public class Program
 
         try {
             msbClient.Disconnect();
+        } catch {
+
+        }
+
+        try {
             opcUaClient.EndSession();
         } catch {
 
