@@ -4,6 +4,45 @@ using Fraunhofer.IPA.MSB.Client.API.Model;
 
 public class Program
 {
+    public static string connInfo(string hostname)
+    {
+        System.Net.IPEndPoint endPoint;
+        using (System.Net.Sockets.Socket socket = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Dgram, 0))
+        {
+            string adr = hostname;
+            if (adr.Contains("//"))
+                adr = adr.Substring(adr.IndexOf("//")+2);
+            if (adr.Contains('/'))
+                adr = adr.Substring(0, adr.IndexOf('/'));
+
+            try {
+                socket.Connect(adr, 65530);
+            } catch (Exception e)
+            {
+
+            }           
+            
+            endPoint = socket.LocalEndPoint as System.Net.IPEndPoint;
+        }
+
+        var strHostName = System.Net.Dns.GetHostName();
+        var ipEntry = System.Net.Dns.GetHostEntry(strHostName);
+        var addr = ipEntry.AddressList;
+        string antw = "";
+
+        foreach (var a in addr)
+        {
+            string a_ = a.ToString();
+            if (a.Equals(endPoint.Address))
+            {
+                a_ += " (Verbindung zu MSB)";
+            }
+            antw += (a_ + "\n");
+        }
+
+        return antw;
+    }
+
     public static void msbCallback_Connected(object sender, System.EventArgs e)
     {
         msbClient.RegisterAsync(msbApplication);
@@ -269,8 +308,10 @@ public class Program
 
         var c_file = System.IO.File.ReadAllText(args[0]);
         var c = Newtonsoft.Json.JsonConvert.DeserializeObject<Service>(c_file);
+        
+        var info = connInfo(c.target_interface);
 
-        msbApplication = new Application(c.uuid, c.name, c.description, c.token);
+        msbApplication = new Application(c.uuid, c.name, c.description + "\n\nNetzwerkinformationen:\n" + info, c.token);
 
         if (!System.IO.File.Exists(msbApplication.ConfigurationPersistencePath))
         {
