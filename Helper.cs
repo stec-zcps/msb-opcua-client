@@ -1,9 +1,10 @@
 using System;
 using System.Reflection;
 using System.Reflection.Emit;
-namespace TypeBuilderNamespace
+
+namespace Fraunhofer.IPA.MSB.Clients.OPCUA
 {
-    public static class MyTypeBuilder
+    public static class Helper
     {
         public static object CreateNewObject(Type typ)
         {

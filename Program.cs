@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Fraunhofer.IPA.MSB.Client.API.Model;
+using Fraunhofer.IPA.MSB.Clients.OPCUA;
 using Serilog;
-//{"methodNodeId":"ns=2;s=Demo.SetSimulationSpeed","objectNodeId":"ns=2;s=Demo","name":"hallo","handleAsComplexObject":false}
+
 public class Program
 {
     public static string connInfo(string hostname)
@@ -20,8 +21,8 @@ public class Program
                 socket.Connect(adr, 65530);
             } catch (Exception e)
             {
-
-            }           
+                Log.Error(e.Message);
+            }
             
             endPoint = socket.LocalEndPoint as System.Net.IPEndPoint;
         }
@@ -47,11 +48,6 @@ public class Program
     public static void msbCallback_Connected(object sender, System.EventArgs e)
     {
         msbClient.RegisterAsync(msbApplication);
-    }
-
-    public static void msbCallback_RegistrationFailed(object sender, System.EventArgs e)
-    {
-        Console.WriteLine("");
     }
 
     public static void msbCallback_ConfigurationEvent(object sender, Fraunhofer.IPA.MSB.Client.API.EventArgs.ConfigurationParameterReceivedEventArgs e)
@@ -89,7 +85,7 @@ public class Program
 
         if (methodOutputTypes.ContainsKey(nodeId))
         {
-            var output = TypeBuilderNamespace.MyTypeBuilder.CreateNewObject(methodOutputTypes[nodeId]);
+            var output = Helper.CreateNewObject(methodOutputTypes[nodeId]);
             var felder_output = methodOutputTypes[nodeId].GetFields();
             for(int i = 0; i < felder_output.Length; ++i)
             {
@@ -128,7 +124,7 @@ public class Program
 
         if (methodOutputTypes.ContainsKey(nodeId))
         {
-            var output = TypeBuilderNamespace.MyTypeBuilder.CreateNewObject(methodOutputTypes[nodeId]);
+            var output = Helper.CreateNewObject(methodOutputTypes[nodeId]);
             var felder_output = methodOutputTypes[nodeId].GetFields();
             for(int i = 0; i < felder_output.Length; ++i)
             {
@@ -195,9 +191,9 @@ public class Program
             try
             {
                 msbClient.PublishAsync(msbApplication, ev);
-            } catch {
-
-            }                
+            } catch (Exception ex){
+                Log.Error(ex.Message);
+            }
         }
     }
 
@@ -291,19 +287,18 @@ public class Program
                 .WriteTo.Console(outputTemplate:
                     "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
-
-            Log.Information("Sample application started");
-
+				
+		Log.Information("Application started");
 
         if (args.Length != 1)
         {
-            Console.WriteLine("Path to service description file required as first argument.");
+            Log.Error("Path to service description file required as first argument.");
             return;
         }
 
         if (!System.IO.File.Exists(args[0]))
         {
-            Console.WriteLine("Service description file does not exist. Creating template with new UUID. Exiting afterwards.");
+            Log.Error("Service description file does not exist. Creating template with new UUID. Exiting afterwards.");
             var s = new Service()
             {
                 class_ = "Application",
@@ -345,11 +340,9 @@ public class Program
             opcUaClient.CreateSession((string)msbApplication.Configuration.Parameters["opcua.server.user"].Value, (string)msbApplication.Configuration.Parameters["opcua.server.password"].Value);
         } catch (Exception e)
         {
-            Console.WriteLine(e.Message);
+            Log.Error(e.Message);
         }        
 
-        //opcUaClient.callMethod("ns=2;s=Demo.Method", "ns=2;s=Demo.Method.Multiply", new List<Opc.Ua.Variant>(){new Opc.Ua.Variant(2.0), new Opc.Ua.Variant(3.0)});
-    
         var monitorNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value).ToObject<List<MonitorNode>>();
 
         if (monitorNodes != null)
@@ -373,8 +366,7 @@ public class Program
 
             if (opcUaClient != null)
                 opcUaClient.generateSubscription(1000);
-            //opcUaClient.generateSubscription((Int32)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);
-            
+            //opcUaClient.generateSubscription((Int32)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);            
         }
 
         var readNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.readNodes"].Value).ToObject<List<ReadNode>>();
@@ -481,7 +473,6 @@ public class Program
         msbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
         msbClient.Connected += msbCallback_Connected;
         msbClient.ConfigurationParameterReceived += msbCallback_ConfigurationEvent;
-        msbClient.RegistrationFailed += msbCallback_RegistrationFailed;
 
         msbClient.ConnectAsync();
 
@@ -494,14 +485,14 @@ public class Program
 
         try {
             msbClient.Disconnect();
-        } catch {
-
+        } catch (Exception ex) {
+            Log.Error(ex.Message);
         }
 
         try {
             opcUaClient.EndSession();
-        } catch {
-
+        } catch (Exception ex) {
+            Log.Error(ex.Message);
         }
 
         if (!run && reconfigure) goto Start;
