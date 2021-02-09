@@ -287,8 +287,6 @@ public class Program
                 .WriteTo.Console(outputTemplate:
                     "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
-				
-		Log.Information("Application started");
 
         if (args.Length != 1)
         {
@@ -306,7 +304,12 @@ public class Program
                 name = "OPCUA-Websocket-Client",
                 description = "OPCUA-Websocket-Client",
                 token = System.Guid.NewGuid().ToString(),
-                target_interface = "http://ws.msb.dia.cell.vfk.fraunhofer.de"
+                target_interface = "http://ws.msb.dia.cell.vfk.fraunhofer.de",
+                log_to_console = true,
+                log_to_file = false,
+                logfile = "log.txt",
+                logfile_maxsize = 10000000,
+                logfile_maxfiles = 5
             };
             
             System.IO.File.WriteAllText(args[0].ToString(), Newtonsoft.Json.JsonConvert.SerializeObject(s));
@@ -316,22 +319,56 @@ public class Program
 
         Start:
 
-        var c_file = System.IO.File.ReadAllText(args[0]);
-        var c = Newtonsoft.Json.JsonConvert.DeserializeObject<Service>(c_file);
+        Service c;
+
+        try
+        {
+            var c_file = System.IO.File.ReadAllText(args[0]);
+            c = Newtonsoft.Json.JsonConvert.DeserializeObject<Service>(c_file);
+        } catch (Exception e)
+        {
+            Log.Error("Service generation failed:" + e.Message);
+            return;
+        }        
+
+        if (c.log_to_console && c.log_to_file)
+        {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(c.logfile, outputTemplate:
+                    "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                    rollOnFileSizeLimit: true,
+                    fileSizeLimitBytes: (c.logfile_maxsize > 0 ? c.logfile_maxsize : 10000000),
+                    retainedFileCountLimit: (c.logfile_maxfiles > 0 ? c.logfile_maxfiles : 1))
+                .CreateLogger();
+        } else if (c.log_to_file) {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File(c.logfile, outputTemplate:
+                    "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                    rollOnFileSizeLimit: true,
+                    fileSizeLimitBytes: (c.logfile_maxsize > 0 ? c.logfile_maxsize : 10000000),
+                    retainedFileCountLimit: (c.logfile_maxfiles > 0 ? c.logfile_maxfiles : 1))
+                .CreateLogger();
+        } else {
+            Log.Logger = new LoggerConfiguration().CreateLogger();
+        }
         
         var info = connInfo(c.target_interface);
 
         msbApplication = new Application(c.uuid, c.name, c.description + "\\n\\nNetzwerkinformationen:\\n" + info, c.token);
+        msbApplication.AutoPersistConfiguration = true;
 
         if (!System.IO.File.Exists(msbApplication.ConfigurationPersistencePath))
         {
             addStandardConfigurationParameters();
             msbApplication.Configuration.SaveToFile(msbApplication.ConfigurationPersistencePath);
+            msbApplication.Configuration.LoadFromFile(msbApplication.ConfigurationPersistencePath);
         } else {
 
         }
-
-        msbApplication.AutoPersistConfiguration = true;
 
         addStandardEvents();
 
@@ -341,13 +378,18 @@ public class Program
         } catch (Exception e)
         {
             Log.Error(e.Message);
-        }        
+        }
 
         var monitorNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.monitorNodes"].Value).ToObject<List<MonitorNode>>();
 
         if (monitorNodes != null)
         {
             monitoredEvents = new Dictionary<string, Event>();
+
+            if (opcUaClient != null)
+            {
+                opcUaClient.generateSubscription((Int32)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);          
+            }
             
             foreach (var d in monitorNodes)
             {
@@ -364,9 +406,7 @@ public class Program
                 opcUaClient.monitorItem(d.nodeId, d.samplingInterval, d.queueSize, opcuaCallback_monitoredItemNotification);               
             }
 
-            if (opcUaClient != null)
-                opcUaClient.generateSubscription(1000);
-            //opcUaClient.generateSubscription((Int32)msbApplication.Configuration.Parameters["opcua.subscription.publishingInterval"].Value);            
+            opcUaClient.applySubcription();
         }
 
         var readNodes = ((Newtonsoft.Json.Linq.JArray)msbApplication.Configuration.Parameters["opcua.client.readNodes"].Value).ToObject<List<ReadNode>>();

@@ -101,6 +101,11 @@ namespace Fraunhofer.IPA.MSB.Clients.OPCUA
             subscription.Create();
         }
 
+        public void applySubcription()
+        {
+            subscription.ApplyChanges();
+        }
+
         public void monitorItem(string nodeId, int samplingInterval, uint queueSize, Opc.Ua.Client.MonitoredItemNotificationEventHandler handler)
         {
             var item = new Opc.Ua.Client.MonitoredItem(subscription.DefaultItem)
@@ -196,14 +201,13 @@ namespace Fraunhofer.IPA.MSB.Clients.OPCUA
             {
                 return false;
             }
-            
-            var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
 
             try {
+                var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
                 node = session.ReadNode(nodeId_);
-            } catch {
+            } catch (System.Exception e) {
 
-            }        
+            }
 
             return node != null;
         }

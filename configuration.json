@@ -1,8 +1,0 @@
-{
-    "@class" : "Application",
-    "uuid" : "8abf41b0-fb52-4eb1-bfe6-aaf012cb041e",
-    "name" : "OPCUA-Websocket-Client",
-    "description" : "OPCUA-Websocket-Client",
-    "token" : "aaf012cb041e",
-    "target_interface": "http://ws.msb.dia.cell.vfk.fraunhofer.de"
-}

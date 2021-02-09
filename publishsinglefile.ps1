@@ -8,5 +8,5 @@ if (Test-Path "bin") {
 }
 
 foreach ($architektur in $architekturen) {
-    dotnet publish -r $architektur -c release /p:PublishSingleFile=true
+    dotnet publish -r $architektur -c release /p:PublishSingleFile=true /p:PublishTrimmed=true
 }

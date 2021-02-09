@@ -7,6 +7,11 @@ public class Service
     public string description;
     public string token;
     public string target_interface;
+    public bool log_to_console;
+    public bool log_to_file;
+    public string logfile;
+    public int logfile_maxsize;
+    public int logfile_maxfiles;
 }
 
 public class Node
