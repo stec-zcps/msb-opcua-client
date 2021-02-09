@@ -18,3 +18,5 @@ using
 https://github.com/OPCFoundation/UA-.NETStandard
 
 https://github.com/research-virtualfortknox/msb-client-websocket-csharp
+
+https://opcfoundation.org/members/view/135
