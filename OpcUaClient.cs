@@ -206,7 +206,7 @@ namespace Fraunhofer.IPA.MSB.Clients.OPCUA
                 var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
                 node = session.ReadNode(nodeId_);
             } catch (System.Exception e) {
-
+                Serilog.Log.Error(e.Message);
             }
 
             return node != null;
@@ -222,12 +222,19 @@ namespace Fraunhofer.IPA.MSB.Clients.OPCUA
             
             var nodeId_ = Opc.Ua.NodeId.Parse(nodeId);
 
-            var val = session.ReadValue(nodeId_);
+            Opc.Ua.DataValue val = null;
 
-            if (val.StatusCode == Opc.Ua.StatusCodes.Good)
+            try
             {
-                value = val.Value;
-                return true;
+                val = session.ReadValue(nodeId_);
+
+                if (Opc.Ua.StatusCode.IsGood(val.StatusCode))
+                {
+                    value = val.Value;
+                    return true;
+                }
+            } catch (Exception e) {
+                Serilog.Log.Error(e.Message);
             }
 
             value = null;

@@ -18,12 +18,13 @@
             "command": "dotnet",
             "type": "process",
             "args": [
-                "publish",
+                "publish",                
                 "${workspaceFolder}/msb-opcua-client.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
                 "/property:PublishSingleFile=true",
-                "/property:RuntimeIdentifier=win-x64"
+                "/property:RuntimeIdentifier=linux-arm",
+                "/property:PublishTrimmed=true"
             ],
             "problemMatcher": "$msCompile"
         },

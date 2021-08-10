@@ -47,7 +47,20 @@ public class Program
 
     public static void msbCallback_Connected(object sender, System.EventArgs e)
     {
-        msbClient.RegisterAsync(msbApplication);
+        Log.Logger.Error("Connected");
+        msbClient.RegisterAsync(msbApplication);        
+    }
+
+    public static void msbCallback_Disconnected(object sender, System.EventArgs e)
+    {
+        msbActive = false;
+        Log.Logger.Error("Disconnected");
+    }
+
+    public static void msbCallback_Registered(object sender, System.EventArgs e)
+    {
+        msbActive = true;
+        Log.Logger.Error("Registered");
     }
 
     public static void msbCallback_ConfigurationEvent(object sender, Fraunhofer.IPA.MSB.Client.API.EventArgs.ConfigurationParameterReceivedEventArgs e)
@@ -72,8 +85,8 @@ public class Program
                 CorrelationId = info.CorrelationId
             };
         }
-                    
-        msbClient.PublishAsync(msbApplication, eventData);            
+
+        msbClient.PublishAsyncForget(msbApplication, eventData);
     }
 
     public static void msbCallback_FunctionCallMethod(FunctionCallInfo info)
@@ -98,7 +111,7 @@ public class Program
                 Value = output
             };
 
-            msbClient.PublishAsync(msbApplication, eventData);
+            msbClient.PublishAsyncForget(msbApplication, eventData);
         }
     }
     public static void msbCallback_FunctionCallMethod_Generic<T>([Fraunhofer.IPA.MSB.Client.API.Attributes.MsbFunctionParameter(Name = "val")]T val, FunctionCallInfo info)
@@ -137,7 +150,7 @@ public class Program
                 Value = output
             };
 
-            msbClient.PublishAsync(msbApplication, eventData);
+            msbClient.PublishAsyncForget(msbApplication, eventData);
         }
     }
 
@@ -190,7 +203,7 @@ public class Program
             ev.Value = value.Value;
             try
             {
-                msbClient.PublishAsync(msbApplication, ev);
+                msbClient.PublishAsyncForget(msbApplication, ev);
             } catch (Exception ex){
                 Log.Error(ex.Message);
             }
@@ -198,9 +211,7 @@ public class Program
     }
 
     public static Fraunhofer.IPA.MSB.Client.Websocket.MsbClient msbClient;
-
     public static Application msbApplication;
-
     public static OpcUaClient opcUaClient;
 
     public static Dictionary<string, Event> monitoredEvents, readEvents, methodEvents;
@@ -243,7 +254,13 @@ public class Program
         if (!msbClient.IsConnected()) return;
 
         var resp = new EventData(msbEvent_OpcUaConnected);
-        msbClient.PublishAsync(msbApplication, resp);
+        
+        try
+        {
+            msbClient.PublishAsyncForget(msbApplication, resp);
+        } catch (Exception ex){
+            Log.Error(ex.Message);
+        }
     }
 
     public static void opcuaCallback_Disconnected(object sender, System.EventArgs e)
@@ -251,7 +268,13 @@ public class Program
         if (!msbClient.IsConnected()) return;
 
         var resp = new EventData(msbEvent_OpcUaDisconnected);
-        msbClient.PublishAsync(msbApplication, resp);
+        
+        try
+        {
+            msbClient.PublishAsyncForget(msbApplication, resp);
+        } catch (Exception ex){
+            Log.Error(ex.Message);
+        }
     }
 
     static Event msbEvent_OpcUaConnected, msbEvent_OpcUaDisconnected, msbEvent_OpcUaError;
@@ -279,7 +302,7 @@ public class Program
         msbApplication.AddEvent(msbEvent_OpcUaError);
     }
 
-    public static bool run, reconfigure;
+    public static bool run, reconfigure, msbActive;
     static void Main(string[] args)
     {
         Log.Logger = new LoggerConfiguration()
@@ -351,6 +374,12 @@ public class Program
                     rollOnFileSizeLimit: true,
                     fileSizeLimitBytes: (c.logfile_maxsize > 0 ? c.logfile_maxsize : 10000000),
                     retainedFileCountLimit: (c.logfile_maxfiles > 0 ? c.logfile_maxfiles : 1))
+                .CreateLogger();
+        } else if (c.log_to_console) {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:yyyy-MM-dd - HH:mm:ss}] [{SourceContext:s}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
         } else {
             Log.Logger = new LoggerConfiguration().CreateLogger();
@@ -511,8 +540,17 @@ public class Program
         }
 
         msbClient = new Fraunhofer.IPA.MSB.Client.Websocket.MsbClient(c.target_interface);
+
         msbClient.Connected += msbCallback_Connected;
+        msbClient.Disconnected += msbCallback_Disconnected;
+        msbClient.Registered += msbCallback_Registered;
         msbClient.ConfigurationParameterReceived += msbCallback_ConfigurationEvent;
+
+        msbClient.EventCacheSizePerService = 3;
+
+        msbClient.AutoReconnect = true;
+        msbClient.AutoReconnectIntervalInMilliseconds = 10000;
+        msbActive = false;
 
         msbClient.ConnectAsync();
 

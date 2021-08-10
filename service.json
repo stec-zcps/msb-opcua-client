@@ -1,0 +1,8 @@
+{"@class":"Application",
+"uuid":"6756700f-a07d-4c11-b7d7-e8bf10f47bcd",
+"name":"Puryfill-OPCUA-Client",
+"description":"OPCUA-Websocket-Client",
+"token":"bf58be69-8141-4726-9b06-dca969ea5ad2",
+"target_interface":"http://ws.msb.dia.cell.vfk.fraunhofer.de",
+"log_to_console":true
+}
